@@ -14,9 +14,10 @@ python emit.py                 # build the vector from sample-settle-output.json
 python _check_independent.py   # the pinned independent checker -> exit 0
 ```
 
-`_check_independent.py` is the conformance checker pinned to `vaaraio/vaara`
-`v1.1.1` (`088a869`), unchanged except `_RAILS = ("svm",)`. It imports neither
-x402 nor this repo — only `rfc8785` (JCS) and `cryptography` (ES256).
+`_check_independent.py`'s four verdict functions are byte-identical to the pinned
+`vaaraio/vaara` `v1.1.1` (`088a869`) checker; only `_RAILS = ("svm",)`, the
+docstring, and a "run emit.py first" guard differ. It imports neither x402 nor
+this repo — only `rfc8785` (JCS) and `cryptography` (ES256).
 
 ## What it maps to in `upto-svm`
 

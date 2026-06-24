@@ -1,37 +1,37 @@
 #!/usr/bin/env python3
-"""Independent checker for the x402 <-> Vaara accountability mapping, across an
-action lifecycle, on two rails (generic and Sui exact-scheme).
-
-Imports only the standard library plus ``cryptography`` and ``rfc8785``. It does
-not import Vaara. For each rail it reads the committed step0 (in-progress) and
-step1 (terminal) fixtures and reproduces, per step, three verdicts a third party
-can confirm with only the settlement and the receipt in hand:
+"""Independent checker for the x402 Settlement-Receipt Binding extension on the
+SVM `upto` rail. For the `svm` rail it reads step0 (in-progress) and step1
+(terminal) and reproduces, per step, three verdicts a third party can confirm
+with only the settlement and the receipt in hand:
 
   action_ref_recomputes        sha256 over the JCS-canonical action tuple
                                (agentId, actionType, scope, timestampMs, seq,
                                terminal) equals settlement.actionRef, the join
-                               key. Nothing rail-specific enters the tuple.
+                               key. No amount, nothing rail-specific, in the tuple.
   settlement_binding_resolves  sha256 over the JCS-canonical settlement record
                                equals the receipt's evidenceRef.digest.
   receipt_signature_ok         the ES256 signature verifies over the canonical
                                (version, alg, backLink, decisionDerived,
-                               issuerAsserted) blocks against the public key.
+                               issuerAsserted) blocks against keys/es256_public.pem.
 
-And one cross-step verdict per rail:
+And one cross-step verdict:
 
   lifecycle_distinguishes_terminal
-                               the in-progress and terminal steps have distinct
-                               action_refs, carry terminal=false / terminal=true,
-                               and the in-progress receipt does not resolve
-                               against the terminal settlement. A mid-task
-                               receipt cannot be passed off as the final one.
+                               step0 (terminal=false) and step1 (terminal=true)
+                               have distinct action_refs, and the in-progress
+                               receipt does not resolve against the terminal
+                               settlement. A mid-task receipt cannot be passed
+                               off as the final one.
 
-The Sui rail binds the facilitator's verified settlement result (the Sui tx
-digest plus value/recipient asserted from the net balance change to payTo), not
-a re-derivation from the transaction, so the same recompute holds without the
-join key reaching into the PTB.
+The four verdict functions below are byte-identical to the pinned upstream checker
+(vaaraio/vaara v1.1.1, commit 088a869, tests/vectors/x402_settlement_v0/); only
+`_RAILS`, this docstring, and a "run emit.py first" guard in main() differ. It
+imports neither x402 nor this repo — only the standard library plus rfc8785 (JCS)
+and cryptography (ES256).
 
-Run: python tests/vectors/x402_settlement_v0/_check_independent.py
+Run:
+    python emit.py             # generates keys/, svm/, expected.json
+    python _check_independent.py
 Exit 0 means every verdict matched expected.json.
 """
 from __future__ import annotations
@@ -135,6 +135,9 @@ def _rail_verdicts(rail: str) -> dict:
 
 
 def main() -> int:
+    if not (HERE / "expected.json").exists() or not (KEYS / "es256_public.pem").exists():
+        print("inputs not found — run `python emit.py` first to generate the vector.")
+        return 1
     expected = json.loads((HERE / "expected.json").read_text())
     got = {rail: _rail_verdicts(rail) for rail in _RAILS}
     ok = got == expected
