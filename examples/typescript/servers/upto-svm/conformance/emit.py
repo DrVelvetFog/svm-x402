@@ -11,10 +11,10 @@ requirements/voucher it settled against. Swap in a real devnet run to anchor it.
     python _check_independent.py   # the pinned independent checker -> exit 0, all green
 
 Mapping to upto-svm `settle`:
-  settleResponse.transaction  -> step1 executed settlement id (settle_and_finalize + distribute)
+  settleResponse.transaction  -> step1 executed settlement id (settle_and_seal + distribute)
   settleResponse.amount       -> actual metered amount
   requirements.maxAmount      -> authorized ceiling (signed); refund = ceiling - actual
-  voucher                     -> step0 in-progress assertion (operator voucher)
+  voucher                     -> step0 in-progress assertion (receiver-authorizer voucher)
 
 The two #2666 normative points, shown as a passing test on SVM:
   - step0 binds the voucher (assertion); step1 binds the FINALIZED net-balance-change.
@@ -97,7 +97,7 @@ def main() -> None:
     common = {"rail": "svm", "scheme": "upto", "network": sr["network"], "asset": req["asset"],
               "decimals": req["decimals"], "payTo": req["payTo"], "payer": sr["payer"],
               "channelId": src["channelId"], "authorizedCeiling": ceiling}
-    step0 = {**common, "assertedFrom": "operator-voucher", "status": "in-progress",
+    step0 = {**common, "assertedFrom": "receiver-authorizer-voucher", "status": "in-progress",
              "amount": vou["cumulativeAmount"], "voucher": dict(vou)}
     step1 = {**common, "assertedFrom": "net-balance-change-to-payTo", "status": "finalized",
              "amount": actual, "refunded": refunded, "transaction": sr["transaction"],

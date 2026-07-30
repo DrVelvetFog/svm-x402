@@ -25,12 +25,12 @@ this repo — only `rfc8785` (JCS) and `cryptography` (ES256).
 
 | `upto-svm` `settle` | → | settlement record |
 | --- | --- | --- |
-| `settleResponse.transaction` (settle_and_finalize + distribute sig) | → | step1 executed settlement id |
+| `settleResponse.transaction` (settle_and_seal + distribute sig) | → | step1 executed settlement id |
 | `settleResponse.amount` | → | actual metered amount |
 | `requirements.maxAmount` (signed ceiling) | → | `authorizedCeiling`; refund = ceiling − actual |
-| operator `voucher` | → | step0 in-progress assertion |
+| receiver-authorizer `voucher` | → | step0 in-progress assertion |
 
-## What it proves (offline, no operator trust)
+## What it proves (offline, no facilitator trust)
 
 - **`action_ref_recomputes`** — the join key is `sha256(JCS({agentId, actionType, scope, timestampMs, seq, terminal}))`. No amount in it.
 - **`settlement_binding_resolves`** — the receipt's `evidenceRef.digest` = `sha256(JCS(settlement))`.
@@ -39,7 +39,7 @@ this repo — only `rfc8785` (JCS) and `cryptography` (ES256).
 
 And the two reasons `upto` is the sharp case, which fall out of the above:
 
-1. **Bind the finalized result, not the voucher.** step0 binds `assertedFrom: operator-voucher` (an assertion); step1 binds `assertedFrom: net-balance-change-to-payTo` after `settle_and_finalize`/`distribute`.
+1. **Bind the finalized result, not the voucher.** step0 binds `assertedFrom: receiver-authorizer-voucher` (an assertion); step1 binds `assertedFrom: net-balance-change-to-payTo` after `settle_and_seal`/`distribute`. The two are signed by *different* seats — the receiver authorizer holds payment authority over vouchers, the fee payer holds lifecycle authority and can seal an abandoned channel with `has_voucher = 0` — so the voucher alone doesn't determine what settled.
 2. **Amount/ceiling out of the join key.** A receipt issued against the **5.00 USDC ceiling** binds to a **1.20 USDC actual** settlement, because amount never enters the tuple.
 
 ## Honest scope
