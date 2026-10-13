@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "@x402/core": "workspace:~",
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "zod": "^3.24.2"
   },
   "exports": {
