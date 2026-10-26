@@ -94,7 +94,7 @@ Let `digest` be the EIP-712 hash of the authorization over the token's canonical
 
 Rules 1–4 are stateless (pure signed-input → verdict); rule 5 is the single stateful check.
 
-A signature carrying an [ERC-6492](https://eips.ethereum.org/EIPS/eip-6492) wrapper (a smart wallet not yet deployed) fits neither branch of rules 1–2: the payer has no code to call, and the inner signature is not an EOA's. The reference implementations accept such a signature only when its deployment factory is allowlisted, and leave verification to a simulation that performs the deployment and the transfer together. A verifier that does not implement that path MUST reject ERC-6492-wrapped signatures rather than fall back to `ecrecover`.
+A signature carrying an [ERC-6492](https://eips.ethereum.org/EIPS/eip-6492) wrapper (a smart wallet not yet deployed) fits neither branch of rules 1–2: the payer has no code to call, and the wrapped bytes are not a signature the token accepts as submitted. If `authorization.from` has no code and the signature ends with the ERC-6492 magic suffix, a verifier MUST accept it only through the deployment path — the factory is allowlisted, and a simulation performs the deployment and the transfer together — and MUST NOT remove the wrapper and check the inner signature with `ecrecover`, whether or not the wrapper carries deployment data. This is ERC-6492's own requirement: the suffix check comes before `ecrecover`, precisely so a counterfactual contract signature is never verified as if it were an EOA's.
 
 ### Phase 3: Settlement Logic
 
