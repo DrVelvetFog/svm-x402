@@ -74,7 +74,7 @@ The `payload` field must contain:
 
 ### Phase 2: Verification Logic
 
-1.  **Verify** the signature is valid and recovers to the `authorization.from` address.
+1.  **Verify** the signature is valid for `authorization.from` per [Verification Rules](#facilitator-verification-rules-must) 1–2: recovery for a payer without code, ERC-1271 for a payer with code.
 2.  **Verify** the `client` has sufficient balance of the `asset`.
 3.  **Verify** the authorization parameters satisfy the `PaymentRequirements`: `authorization.value` MUST exactly equal `amount` (see [Verification Rules](#facilitator-verification-rules-must) rule 4), and the validity window MUST be active (rule 3).
 4.  **Verify** the Token and Network match the requirement.
@@ -82,15 +82,19 @@ The `payload` field must contain:
 
 ### Facilitator Verification Rules (MUST)
 
-A verifier of an `eip3009` payment MUST enforce all of the following before treating the payment as valid. These rules mirror the on-chain preconditions of `transferWithAuthorization` itself: on a local-verification path, where no facilitator is invoked and no on-chain settlement follows the verify, they are the entire settlement guarantee — anything the token contract would reject at settlement but a lax verifier accepts is a resource released for a payment that can never settle.
+A verifier of an `eip3009` payment MUST enforce all of the following before treating the payment as valid. Rules 1–3 and the on-chain part of rule 5 mirror the preconditions `transferWithAuthorization` itself enforces; rule 4 is a protocol rule — the token executes whatever `value` the payer signed. On a local-verification path, where no facilitator is invoked and no on-chain settlement follows the verify, these rules are the entire settlement guarantee: anything the token contract would reject at settlement but a lax verifier accepts is a resource released for a payment that does not settle as submitted.
 
-1. **Signature canonicality.** Reject any signature where `s > secp256k1n/2` (the low-s rule, [EIP-2](https://eips.ethereum.org/EIPS/eip-2)). A high-s signature is a second valid encoding of the same authorization under `ecrecover`, and EIP-3009 token implementations that enforce canonical signatures (e.g. USDC's `ECRecover`) revert on it at settlement, so accepting it at verification predicts a settlement that fails.
-2. **Signer binding.** The signature MUST recover to `authorization.from` over the token's canonical EIP-712 domain (`name`, `version`, `chainId`, `verifyingContract`). No separate domain check is required: a signature over a different chain or contract recovers to a different address and therefore fails this check.
-3. **Validity window.** Reject any authorization where `now < validAfter` (`invalid_exact_evm_payload_authorization_valid_after`) or `now >= validBefore` (`invalid_exact_evm_payload_authorization_valid_before`), evaluated at verification time.
+Let `digest` be the EIP-712 hash of the authorization over the token's canonical domain (`name`, `version`, `chainId`, `verifyingContract`). EIP-3009 tokens pick the signature check by the payer's code, not by the shape of the signature (e.g. USDC's `SignatureChecker`), and the rules below follow the same split.
+
+1. **Signature canonicality.** If `authorization.from` has no code and the signature is a plain 65-byte ECDSA signature, reject it when `s > secp256k1n/2` (the low-s rule, [EIP-2](https://eips.ethereum.org/EIPS/eip-2)). A high-s signature is a second valid encoding of the same authorization under `ecrecover`, and EIP-3009 token implementations that enforce canonical signatures (e.g. USDC's `ECRecover`) revert on it at settlement, so accepting it at verification predicts a settlement that reverts if the signature is submitted unchanged.
+2. **Signer binding.** If `authorization.from` has no code, the signature MUST recover to `authorization.from` from `digest`; no separate domain check is required, since a signature over a different chain or contract recovers to a different address and fails this check. If `authorization.from` has code (a contract account, or an EOA with an [EIP-7702](https://eips.ethereum.org/EIPS/eip-7702) delegation), the token asks the account instead of running `ecrecover`: `isValidSignature(digest, signature)` ([ERC-1271](https://eips.ethereum.org/EIPS/eip-1271)) on `authorization.from` MUST return the magic value.
+3. **Validity window.** Reject any authorization where `now <= validAfter` (`invalid_exact_evm_payload_authorization_valid_after`) or `now >= validBefore` (`invalid_exact_evm_payload_authorization_valid_before`), evaluated at verification time. These are the token's own strict comparisons at settlement, so `now == validAfter` is not yet valid. A window that is open at verification can close before settlement; a verifier MAY therefore require `validBefore` to exceed verification time by a safety margin (the reference implementations require at least 6 seconds).
 4. **Exact value.** Reject any authorization whose `value` does not exactly equal the required `amount` (`invalid_exact_evm_payload_authorization_value_mismatch`). Overpayment is a mismatch, not a margin.
 5. **Replay.** Reject any authorization whose `nonce` is already consumed for `from` on the token contract (`authorizationState(from, nonce) == true`), or already present in the verifier's own pending set. EIP-3009 nonces are scoped per authorizer: the same 32 bytes seen from a different `from` is not a replay. On-chain state is the authoritative check; the verifier's local set is same-verifier defense-in-depth, and on a verify-only path — where nothing consumes the nonce on chain — it is the only replay protection.
 
 Rules 1–4 are stateless (pure signed-input → verdict); rule 5 is the single stateful check.
+
+A signature carrying an [ERC-6492](https://eips.ethereum.org/EIPS/eip-6492) wrapper (a smart wallet not yet deployed) fits neither branch of rules 1–2: the payer has no code to call, and the inner signature is not an EOA's. The reference implementations accept such a signature only when its deployment factory is allowlisted, and leave verification to a simulation that performs the deployment and the transfer together. A verifier that does not implement that path MUST reject ERC-6492-wrapped signatures rather than fall back to `ecrecover`.
 
 ### Phase 3: Settlement Logic
 
